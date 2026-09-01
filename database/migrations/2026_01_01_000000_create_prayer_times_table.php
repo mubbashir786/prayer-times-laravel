@@ -11,8 +11,9 @@ return new class extends Migration
         Schema::create('prayer_times', function (Blueprint $table) {
             $table->id();
             $table->string('city')->index();
-            $table->decimal('latitude', 10, 6);
-            $table->decimal('longitude', 10, 6);
+            $table->decimal('latitude', 10, 6)->nullable();
+            $table->decimal('longitude', 10, 6)->nullable();
+            $table->string('timezone')->nullable();
             $table->date('date')->index();
             $table->string('hijri_date')->nullable();
             $table->boolean('is_ramadan')->default(false);

@@ -3,6 +3,7 @@
 namespace Mubbashir786\PrayerTimes\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Mubbashir786\PrayerTimes\Casts\TimeOfDay;
 
 class PrayerTime extends Model
 {
@@ -10,6 +11,7 @@ class PrayerTime extends Model
         'city',
         'latitude',
         'longitude',
+        'timezone',
         'date',
         'hijri_date',
         'is_ramadan',
@@ -24,6 +26,12 @@ class PrayerTime extends Model
     protected $casts = [
         'date' => 'date',
         'is_ramadan' => 'boolean',
+        'fajr' => TimeOfDay::class,
+        'sunrise' => TimeOfDay::class,
+        'dhuhr' => TimeOfDay::class,
+        'asr' => TimeOfDay::class,
+        'maghrib' => TimeOfDay::class,
+        'isha' => TimeOfDay::class,
     ];
 
     /**
@@ -41,11 +49,19 @@ class PrayerTime extends Model
     }
 
     /**
-     * The next upcoming prayer name + time relative to now.
+     * The timezone these times are expressed in, falling back to the configured default.
+     */
+    public function timezoneName(): string
+    {
+        return $this->timezone ?: config('prayer-times.default_location.timezone', config('app.timezone'));
+    }
+
+    /**
+     * The next upcoming prayer name + time, relative to now in the city's own timezone.
      */
     public function nextPrayer(): ?array
     {
-        $now = now()->format('H:i:s');
+        $now = now($this->timezoneName())->format('H:i');
 
         foreach ($this->toPrayerArray() as $name => $time) {
             if ($time > $now) {

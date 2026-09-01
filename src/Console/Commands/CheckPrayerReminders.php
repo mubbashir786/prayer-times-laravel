@@ -9,7 +9,7 @@ use Mubbashir786\PrayerTimes\Facades\PrayerTimes;
 
 class CheckPrayerReminders extends Command
 {
-    protected $signature = 'prayer-times:check-reminders {--city=}';
+    protected $signature = 'prayer-times:check-reminders {--city=} {--lat=} {--lng=}';
 
     protected $description = 'Check today\'s prayer times and dispatch reminder events for prayers approaching soon.';
 
@@ -22,12 +22,15 @@ class CheckPrayerReminders extends Command
         }
 
         $city = $this->option('city');
-        $prayerTime = PrayerTimes::today($city);
+        $lat = $this->option('lat') !== null ? (float) $this->option('lat') : null;
+        $lng = $this->option('lng') !== null ? (float) $this->option('lng') : null;
+        $prayerTime = PrayerTimes::today($city, $lat, $lng);
         $minutesBefore = config('prayer-times.reminders.minutes_before', 15);
 
         foreach ($prayerTime->toPrayerArray() as $name => $time) {
-            $prayerAt = Carbon::parse($time);
-            $minutesRemaining = now()->diffInMinutes($prayerAt, false);
+            $prayerAt = Carbon::parse($time, $prayerTime->timezoneName());
+            // Carbon 3 returns a float here, so round before the strict comparison below.
+            $minutesRemaining = (int) round(now()->diffInMinutes($prayerAt, false));
 
             // Fire once, inside a 1-minute window around the configured lead time.
             if ($minutesRemaining === $minutesBefore) {
