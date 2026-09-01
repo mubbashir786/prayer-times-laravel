@@ -15,8 +15,12 @@ return new class extends Migration
             $table->decimal('longitude', 10, 6)->nullable();
             $table->string('timezone')->nullable();
             $table->date('date')->index();
-            $table->string('hijri_date')->nullable();
-            $table->boolean('is_ramadan')->default(false);
+            $table->unsignedTinyInteger('hijri_day')->nullable();
+            $table->unsignedTinyInteger('hijri_month')->nullable()->index();
+            $table->unsignedSmallInteger('hijri_year')->nullable();
+            // Days this row's Hijri date was shifted by, so a change in config
+            // refetches instead of serving the wrong country's calendar.
+            $table->tinyInteger('hijri_adjustment')->default(0);
             $table->time('fajr');
             $table->time('sunrise');
             $table->time('dhuhr');

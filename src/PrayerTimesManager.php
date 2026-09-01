@@ -4,6 +4,8 @@ namespace Mubbashir786\PrayerTimes;
 
 use Carbon\Carbon;
 use GuzzleHttp\Client;
+use Mubbashir786\PrayerTimes\Hijri\HijriCalendar;
+use Mubbashir786\PrayerTimes\Hijri\HijriDate;
 use Mubbashir786\PrayerTimes\Models\PrayerTime;
 
 class PrayerTimesManager
@@ -41,8 +43,10 @@ class PrayerTimesManager
             'latitude' => $data['latitude'],
             'longitude' => $data['longitude'],
             'timezone' => $data['timezone'],
-            'hijri_date' => $data['hijri_date'],
-            'is_ramadan' => $data['is_ramadan'],
+            'hijri_day' => $data['hijri_day'],
+            'hijri_month' => $data['hijri_month'],
+            'hijri_year' => $data['hijri_year'],
+            'hijri_adjustment' => $data['hijri_adjustment'],
             'fajr' => $data['fajr'],
             'sunrise' => $data['sunrise'],
             'dhuhr' => $data['dhuhr'],
@@ -101,6 +105,75 @@ class PrayerTimesManager
     }
 
     /**
+     * The Hijri date for a given day and city, as a value object.
+     */
+    public function hijri(?Carbon $date = null, ?string $city = null, ?float $lat = null, ?float $lng = null): HijriDate
+    {
+        return $this->forDate($date, $city, $lat, $lng)->hijri;
+    }
+
+    /**
+     * The locale month names, prayer names and widget labels are rendered in.
+     */
+    public function locale(): string
+    {
+        return $this->calendar()->locale();
+    }
+
+    /**
+     * Set that locale for the rest of the request, e.g. PrayerTimes::setLocale('ur').
+     *
+     * Pass null to go back to following the application locale.
+     */
+    public function setLocale(?string $locale): static
+    {
+        $this->calendar()->setLocale($locale);
+
+        return $this;
+    }
+
+    /**
+     * All twelve Hijri month names, keyed 1-12.
+     *
+     * @return array<int, string>
+     */
+    public function hijriMonths(?string $locale = null): array
+    {
+        return $this->calendar()->months($locale);
+    }
+
+    /**
+     * A single Hijri month name by number, e.g. hijriMonth(9, 'ur') === 'رمضان'.
+     */
+    public function hijriMonth(int $month, ?string $locale = null): string
+    {
+        return $this->calendar()->monthName($month, $locale);
+    }
+
+    /**
+     * Translate a prayer name, e.g. prayerName('Fajr', 'ar') === 'الفجر'.
+     */
+    public function prayerName(string $prayer, ?string $locale = null): string
+    {
+        return $this->calendar()->prayerName($prayer, $locale);
+    }
+
+    /**
+     * Locales this package can render.
+     *
+     * @return array<int, string>
+     */
+    public function locales(): array
+    {
+        return $this->calendar()->availableLocales();
+    }
+
+    protected function calendar(): HijriCalendar
+    {
+        return app(HijriCalendar::class);
+    }
+
+    /**
      * Suhoor cutoff time (Fajr minus configured buffer), useful during Ramadan.
      */
     public function suhoorCutoff(?Carbon $date = null, ?string $city = null, ?float $lat = null, ?float $lng = null): string
@@ -132,26 +205,28 @@ class PrayerTimesManager
      * Order of precedence: explicit coordinates > config city map > API city
      * lookup > the configured default location.
      *
-     * @return array{city: string, country: string, latitude: ?float, longitude: ?float, timezone: ?string}
+     * @return array{city: string, country: string, latitude: ?float, longitude: ?float, timezone: ?string, hijri_adjustment: int}
      */
     public function resolveLocation(?string $city = null, ?float $lat = null, ?float $lng = null): array
     {
         $default = config('prayer-times.default_location');
 
         if ($city === null || trim($city) === '') {
-            return [
+            $location = [
                 'city' => $default['city'],
                 'country' => $default['country'],
                 'latitude' => $lat ?? (float) $default['latitude'],
                 'longitude' => $lng ?? (float) $default['longitude'],
                 'timezone' => $default['timezone'],
             ];
+
+            return $location + ['hijri_adjustment' => $this->hijriAdjustmentFor($location)];
         }
 
         $city = trim($city);
         $known = $this->lookupCity($city);
 
-        return [
+        $location = [
             // Use the config map's spelling when it matches, so the cache key is stable.
             'city' => $known['name'] ?? $city,
             'country' => $known['country'] ?? config('prayer-times.fallback_country', $default['country']),
@@ -159,12 +234,35 @@ class PrayerTimesManager
             'longitude' => $lng ?? $known['longitude'] ?? null,
             'timezone' => $known['timezone'] ?? null,
         ];
+
+        return $location + [
+            'hijri_adjustment' => $known['hijri_adjustment'] ?? $this->hijriAdjustmentFor($location),
+        ];
+    }
+
+    /**
+     * How many days to shift the Hijri date for this location.
+     *
+     * A city entry's own 'hijri_adjustment' wins, then the per-country map, then
+     * the global default.
+     */
+    protected function hijriAdjustmentFor(array $location): int
+    {
+        $byCountry = config('prayer-times.hijri.adjustments', []);
+
+        foreach ($byCountry as $country => $adjustment) {
+            if (mb_strtolower($country) === mb_strtolower((string) $location['country'])) {
+                return (int) $adjustment;
+            }
+        }
+
+        return (int) config('prayer-times.hijri.adjustment', 0);
     }
 
     /**
      * Find a city in the config map, case-insensitively.
      *
-     * @return array{name: string, latitude: float, longitude: float, timezone: ?string, country: ?string}|null
+     * @return array{name: string, latitude: float, longitude: float, timezone: ?string, country: ?string, hijri_adjustment: ?int}|null
      */
     protected function lookupCity(string $city): ?array
     {
@@ -179,6 +277,7 @@ class PrayerTimesManager
                 'longitude' => (float) $entry['longitude'],
                 'timezone' => $entry['timezone'] ?? null,
                 'country' => $entry['country'] ?? null,
+                'hijri_adjustment' => isset($entry['hijri_adjustment']) ? (int) $entry['hijri_adjustment'] : null,
             ];
         }
 
@@ -196,6 +295,11 @@ class PrayerTimesManager
         $ttlHours = (int) config('prayer-times.cache_ttl_hours', 24 * 7);
 
         if ($ttlHours > 0 && $cached->updated_at && $cached->updated_at->lt(now()->subHours($ttlHours))) {
+            return false;
+        }
+
+        if ($cached->hijri_adjustment !== $location['hijri_adjustment']) {
+            // The Hijri offset for this country changed in config.
             return false;
         }
 
@@ -243,21 +347,44 @@ class PrayerTimesManager
         }
 
         $response = $this->http->get(config('prayer-times.api_base_url') . $endpoint, ['query' => $query]);
+        $body = json_decode($response->getBody()->getContents(), true);
 
-        return $this->parseResponse(
-            json_decode($response->getBody()->getContents(), true),
-            $location
+        return $this->parseResponse($body, $location, $this->fetchHijri($date, $location, $body));
+    }
+
+    /**
+     * The Hijri date for this row.
+     *
+     * With no adjustment it is whatever the timings response reported (the Saudi
+     * HJCoSA calendar). Otherwise the Gregorian date is shifted and converted by
+     * the API, which keeps 29/30-day month boundaries correct - so a -1 country
+     * reads 30 Ramadan on the day Saudi Arabia reads 1 Shawwal.
+     */
+    protected function fetchHijri(Carbon $date, array $location, array $body): array
+    {
+        $adjustment = (int) $location['hijri_adjustment'];
+
+        if ($adjustment === 0) {
+            return $body['data']['date']['hijri'];
+        }
+
+        $shifted = $date->copy()->addDays($adjustment);
+
+        $response = $this->http->get(
+            config('prayer-times.api_base_url') . '/gToH/' . $shifted->format('d-m-Y')
         );
+
+        return json_decode($response->getBody()->getContents(), true)['data']['hijri'];
     }
 
     /**
      * Normalise an Aladhan payload into the columns we store.
      */
-    protected function parseResponse(array $body, array $location): array
+    protected function parseResponse(array $body, array $location, array $hijri): array
     {
         $timings = $body['data']['timings'];
-        $hijri = $body['data']['date']['hijri'];
         $meta = $body['data']['meta'] ?? [];
+        $hijriDate = HijriDate::fromApi($hijri, (int) $location['hijri_adjustment']);
 
         return [
             'fajr' => $this->stripTimezone($timings['Fajr']),
@@ -266,8 +393,10 @@ class PrayerTimesManager
             'asr' => $this->stripTimezone($timings['Asr']),
             'maghrib' => $this->stripTimezone($timings['Maghrib']),
             'isha' => $this->stripTimezone($timings['Isha']),
-            'hijri_date' => $hijri['day'] . ' ' . $hijri['month']['en'] . ' ' . $hijri['year'],
-            'is_ramadan' => $hijri['month']['number'] === 9,
+            'hijri_day' => $hijriDate->day,
+            'hijri_month' => $hijriDate->month,
+            'hijri_year' => $hijriDate->year,
+            'hijri_adjustment' => $hijriDate->adjustment,
             // For a /timingsByCity call these come back from the API, which is
             // how an unlisted city still ends up with real coordinates stored.
             // Only the coordinates we resolved ourselves are stored. A

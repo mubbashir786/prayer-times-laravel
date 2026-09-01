@@ -38,6 +38,7 @@ class PrayerTimeQueriesTest extends TestCase
         $shawwal = PrayerTimes::forDate(Carbon::parse('2026-03-21'), 'Lahore');
 
         $this->assertSame('1 Ramadan 1447', $ramadan->hijri_date);
+        $this->assertSame([1, 9, 1447], [$ramadan->hijri->day, $ramadan->hijri->month, $ramadan->hijri->year]);
         $this->assertTrue($ramadan->is_ramadan);
         $this->assertSame('3 Shawwal 1447', $shawwal->hijri_date);
         $this->assertFalse($shawwal->is_ramadan);

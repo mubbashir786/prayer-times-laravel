@@ -30,6 +30,11 @@ abstract class TestCase extends Orchestra
     protected function defineEnvironment($app): void
     {
         $app['config']->set('app.timezone', 'UTC');
+        $app['config']->set('app.locale', 'en');
+        // The shipped config shifts Pakistan a day behind Saudi Arabia, which
+        // costs an extra API call. Tests that care opt in explicitly.
+        $app['config']->set('prayer-times.hijri.adjustments', []);
+        $app['config']->set('prayer-times.locale', null);
         $app['config']->set('database.default', 'testing');
         $app['config']->set('database.connections.testing', [
             'driver' => 'sqlite',
@@ -94,6 +99,18 @@ abstract class TestCase extends Orchestra
         ], $overrides['meta'] ?? []);
 
         return ['data' => ['timings' => $timings, 'date' => ['hijri' => $hijri], 'meta' => $meta]];
+    }
+
+    /**
+     * An Aladhan /gToH payload, used when a Hijri adjustment is in play.
+     */
+    protected function gToHPayload(int $day = 30, int $month = 9, string $monthName = 'Ramadan', int $year = 1447): array
+    {
+        return ['data' => ['hijri' => [
+            'day' => (string) $day,
+            'month' => ['number' => $month, 'en' => $monthName, 'days' => 30],
+            'year' => (string) $year,
+        ]]];
     }
 
     /** The number of API calls made so far. */

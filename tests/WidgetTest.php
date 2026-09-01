@@ -3,6 +3,7 @@
 namespace Mubbashir786\PrayerTimes\Tests;
 
 use Illuminate\Support\Carbon;
+use Mubbashir786\PrayerTimes\Facades\PrayerTimes;
 
 class WidgetTest extends TestCase
 {
@@ -62,7 +63,44 @@ class WidgetTest extends TestCase
 
         $view = $this->blade('<x-prayer-times::widget city="Lahore" />');
 
-        $view->assertSee('Next: Maghrib at 6:47 PM');
+        $view->assertSee('Next');
+        $view->assertSee('Maghrib');
+        $view->assertSee('6:47 PM');
+    }
+
+    public function test_it_renders_in_the_locale_passed_to_it(): void
+    {
+        $this->fakeApi([$this->payload()]);
+
+        $view = $this->blade('<x-prayer-times::widget city="Lahore" locale="ur" />');
+
+        $view->assertSee('فجر', false);
+        $view->assertSee('مغرب', false);
+        $view->assertSee('1 رمضان 1447', false);
+        $view->assertSee('رمضان مبارک', false);
+        $view->assertSee('dir="rtl"', false);
+    }
+
+    public function test_it_follows_the_globally_set_locale(): void
+    {
+        $this->fakeApi([$this->payload()]);
+        PrayerTimes::setLocale('ar');
+
+        $view = $this->blade('<x-prayer-times::widget city="Lahore" />');
+
+        $view->assertSee('الفجر', false);
+        $view->assertSee('lang="ar"', false);
+        $view->assertSee('dir="rtl"', false);
+    }
+
+    public function test_a_left_to_right_locale_gets_no_rtl_attribute(): void
+    {
+        $this->fakeApi([$this->payload()]);
+
+        $view = $this->blade('<x-prayer-times::widget city="Lahore" locale="tr" />');
+
+        $view->assertSee('İmsak', false);
+        $view->assertDontSee('dir="rtl"', false);
     }
 
     public function test_it_shows_the_ramadan_banner_only_during_ramadan(): void

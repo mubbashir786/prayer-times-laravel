@@ -182,8 +182,7 @@ class CitySelectionTest extends TestCase
             'longitude' => 73.0479,
             'timezone' => 'Asia/Karachi',
             'date' => Carbon::today()->toDateString(),
-            'hijri_date' => '1 Ramadan 1447',
-            'is_ramadan' => true,
+            'hijri_day' => 1, 'hijri_month' => 9, 'hijri_year' => 1447,
             'fajr' => '05:20', 'sunrise' => '06:40', 'dhuhr' => '12:15',
             'asr' => '16:25', 'maghrib' => '18:50', 'isha' => '20:10',
         ]);

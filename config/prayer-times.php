@@ -38,6 +38,36 @@ return [
     // Country sent to /timingsByCity for a city that is not in the map above.
     'fallback_country' => env('PRAYER_TIMES_COUNTRY', 'Pakistan'),
 
+    // Language for month names, prayer names and widget labels.
+    // null follows the application locale. Change it at runtime with
+    // PrayerTimes::setLocale('ur'). Ships with en, ur and ar; publish the lang
+    // files to add more: php artisan vendor:publish --tag=prayer-times-lang
+    'locale' => env('PRAYER_TIMES_LOCALE'),
+
+    // Locales rendered right-to-left (used for the widget's dir attribute).
+    'rtl_locales' => ['ar', 'ur', 'fa', 'ps', 'he'],
+
+    'hijri' => [
+
+        // The API reports the Saudi (HJCoSA) Hijri calendar. Many countries
+        // sight the moon a day later, so when Saudi Arabia says 1 Shawwal,
+        // Pakistan is still on 30 Ramadan.
+        //
+        // This is the number of days to shift the Hijri date by: -1 puts you a
+        // day behind Saudi Arabia, +1 a day ahead. Prayer times are never
+        // affected - only the Hijri date and the Ramadan flag.
+        'adjustment' => env('PRAYER_TIMES_HIJRI_ADJUSTMENT', 0),
+
+        // Per-country overrides, matched against the country a city resolves to.
+        // A city in the map above may also carry its own 'hijri_adjustment'.
+        'adjustments' => [
+            'Pakistan' => -1,
+            'India' => -1,
+            'Bangladesh' => -1,
+        ],
+
+    ],
+
     // Aladhan calculation method ID.
     // 1 = University of Islamic Sciences, Karachi (common for Pakistan)
     // 2 = ISNA, 3 = MWL, 4 = Umm al-Qura, etc.

@@ -5,12 +5,15 @@ namespace Mubbashir786\PrayerTimes;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use Mubbashir786\PrayerTimes\Console\Commands\CheckPrayerReminders;
+use Mubbashir786\PrayerTimes\Hijri\HijriCalendar;
 
 class PrayerTimesServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/prayer-times.php', 'prayer-times');
+
+        $this->app->singleton(HijriCalendar::class, fn () => new HijriCalendar());
 
         $this->app->singleton('prayer-times', function () {
             return new PrayerTimesManager();
@@ -21,6 +24,7 @@ class PrayerTimesServiceProvider extends ServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'prayer-times');
+        $this->loadTranslationsFrom(__DIR__ . '/../resources/lang', 'prayer-times');
 
         if ($this->app->runningInConsole()) {
             $this->publishes([
@@ -30,6 +34,10 @@ class PrayerTimesServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__ . '/../resources/views' => resource_path('views/vendor/prayer-times'),
             ], 'prayer-times-views');
+
+            $this->publishes([
+                __DIR__ . '/../resources/lang' => lang_path('vendor/prayer-times'),
+            ], 'prayer-times-lang');
 
             $this->commands([
                 CheckPrayerReminders::class,
