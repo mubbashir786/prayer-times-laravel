@@ -298,6 +298,11 @@ class PrayerTimesManager
             return false;
         }
 
+        if ($cached->hijri_day === null) {
+            // Upgraded from a version that stored the Hijri date as a string.
+            return false;
+        }
+
         if ($cached->hijri_adjustment !== $location['hijri_adjustment']) {
             // The Hijri offset for this country changed in config.
             return false;

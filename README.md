@@ -10,7 +10,7 @@
   <a href="https://packagist.org/packages/mubbashir786/prayer-times-laravel"><img alt="Downloads" src="https://img.shields.io/packagist/dt/mubbashir786/prayer-times-laravel.svg?style=flat-square"></a>
   <img alt="PHP version" src="https://img.shields.io/badge/php-%5E8.1-777bb4?style=flat-square">
   <img alt="Laravel version" src="https://img.shields.io/badge/laravel-10%20%7C%2011%20%7C%2012-ff2d20?style=flat-square">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-84%20passing-success?style=flat-square">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-88%20passing-success?style=flat-square">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-green?style=flat-square"></a>
 </p>
 
@@ -38,6 +38,7 @@ PrayerTimes::minutesUntilIftar('Dubai');     // 137
 - [Ramadan helpers](#ramadan-helpers)
 - [Reminders](#reminders)
 - [How caching works](#how-caching-works)
+- [Upgrading from 1.0](#upgrading-from-10)
 - [Testing](#testing)
 - [Roadmap](#roadmap)
 
@@ -400,6 +401,37 @@ the first time they are asked for and served from the database after that. A row
 > the package stores nothing rather than something wrong. The times and the timezone are real.
 > Add the city to the `cities` map if you want the coordinates on the row.
 
+## Upgrading from 1.0
+
+1.1 stores the Hijri date as structured columns instead of a formatted string, so the
+`prayer_times` table changes shape. If you installed 1.0 and already migrated, run:
+
+```bash
+php artisan migrate
+```
+
+The upgrade migration swaps `hijri_date` and `is_ramadan` for `hijri_day`, `hijri_month`,
+`hijri_year` and `hijri_adjustment`. Your cached prayer times are kept; each row refetches its
+Hijri date the first time it is asked for. It is a no-op on a fresh install, and it rolls back.
+
+Republish the config to pick up the new `locale`, `rtl_locales` and `hijri` keys:
+
+```bash
+php artisan vendor:publish --tag=prayer-times-config --force
+```
+
+What changed in the API:
+
+| 1.0 | 1.1 |
+|---|---|
+| `$row->hijri_date` (column) | still there, now an accessor rendered in the current locale |
+| `$row->is_ramadan` (column) | still there, now derived from `hijri_month` |
+| — | `$row->hijri` — a `HijriDate` with day, month, year and month names |
+| `where('is_ramadan', true)` | `PrayerTime::ramadan()` or `where('hijri_month', 9)` |
+
+Everything else — `today()`, `forDate()`, `suhoorCutoff()`, `minutesUntilIftar()`, the widget —
+works exactly as it did.
+
 ## Testing
 
 ```bash
@@ -410,10 +442,10 @@ composer install
 composer test
 ```
 
-78 tests cover city resolution and the endpoint each path picks, caching and invalidation,
+82 tests cover city resolution and the endpoint each path picks, caching and invalidation,
 timezone handling, the Hijri calendar and its per-country offsets, all twelve languages, the
-Ramadan helpers, the Blade widget and the reminder command — all against a mocked HTTP client, so
-the suite never touches the network.
+Ramadan helpers, the Blade widget, the reminder command and the upgrade path from 1.0 — all
+against a mocked HTTP client, so the suite never touches the network.
 
 Six end-to-end tests run against the live Aladhan API, including the Saudi/Pakistan Eid split.
 They are excluded by default and opt-in:
